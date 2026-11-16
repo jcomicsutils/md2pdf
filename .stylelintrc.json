@@ -1,0 +1,22 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "declaration-property-value-allowed-list": {
+      "border-radius": ["0", "0 !important"],
+      "border-top-left-radius": ["0", "0 !important"],
+      "border-top-right-radius": ["0", "0 !important"],
+      "border-bottom-left-radius": ["0", "0 !important"],
+      "border-bottom-right-radius": ["0", "0 !important"]
+    },
+    "declaration-property-value-disallowed-list": {
+      "box-shadow": ["/^\\s*(?:inset\\s+)?(?:-?\\d+(?:\\.\\d+)?(?:px|mm|pt|rem|em)\\s+){2}(?!0(?:\\s|$|px|mm|pt|rem|em))\\d+/"]
+    },
+    "selector-class-pattern": null,
+    "custom-property-pattern": null,
+    "no-descending-specificity": null,
+    "property-no-vendor-prefix": null,
+    "alpha-value-notation": null,
+    "color-function-notation": null,
+    "value-keyword-case": null
+  }
+}

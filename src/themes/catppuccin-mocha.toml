@@ -1,0 +1,22 @@
+# bcvault theme, format 1. Share this file as is.
+format = 1
+id = "catppuccin-mocha"
+name = "Catppuccin Mocha"
+description = "Soothing pastel dark theme with mauve accent"
+author = "Catppuccin"
+dark = true
+scanlines = false
+
+[colors]
+bg0 = "#11111B"
+bg1 = "#1E1E2E"
+bg2 = "#313244"
+border = "#45475A"
+border_hi = "#B4BEFE"
+text = "#CDD6F4"
+text_dim = "#A6ADC8"
+accent = "#CBA6F7"
+accent2 = "#94E2D5"
+ok = "#A6E3A1"
+warn = "#F9E2AF"
+err = "#F38BA8"

@@ -1,0 +1,22 @@
+# bcvault theme, format 1. Share this file as is.
+format = 1
+id = "paper"
+name = "Paper"
+description = "High-contrast warm paper theme"
+author = "bcvault"
+dark = false
+scanlines = false
+
+[colors]
+bg0 = "#F2F0EA"
+bg1 = "#E8E5DC"
+bg2 = "#DAD6CA"
+border = "#1A1A1A"
+border_hi = "#000000"
+text = "#111111"
+text_dim = "#505050"
+accent = "#BA0020"
+accent2 = "#0044FF"
+ok = "#137333"
+warn = "#B06000"
+err = "#C5221F"

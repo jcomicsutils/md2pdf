@@ -1,0 +1,22 @@
+# bcvault theme, format 1. Share this file as is.
+format = 1
+id = "plain-bw"
+name = "Plain B&W"
+description = "Default black-on-white print theme"
+author = "md2pdf"
+dark = false
+scanlines = false
+
+[colors]
+bg0 = "#FFFFFF"
+bg1 = "#F5F5F5"
+bg2 = "#E5E5E5"
+border = "#222222"
+border_hi = "#000000"
+text = "#000000"
+text_dim = "#4A4A4A"
+accent = "#000000"
+accent2 = "#333333"
+ok = "#137333"
+warn = "#8A4B00"
+err = "#B00020"
