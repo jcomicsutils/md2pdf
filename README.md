@@ -26,8 +26,9 @@ npm run test:e2e # Run Playwright Chromium PDF pagination verification suite
 ```
 
 ### Keyboard Shortcuts & Navigation
+- `Document title` (top toolbar): Sets the PDF title metadata and default filename for `Print / Save as PDF` and `Ctrl/Cmd + S` (overrides the automatic `# H1` fallback; locked when `title:` is set in YAML front matter).
 - `Ctrl/Cmd + P`: Trigger PDF export (`Print / Save as PDF`).
-- `Ctrl/Cmd + S`: Download the current Markdown source as `document.md`.
+- `Ctrl/Cmd + S`: Download the current Markdown source as `<title>.md`.
 - `Ctrl/Cmd + Click` (in preview): Jump the editor cursor to the clicked block's source line.
 
 ### Directives

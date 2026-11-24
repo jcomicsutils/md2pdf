@@ -7,6 +7,7 @@ import iconLightUrl from '../../logo/icon-light.svg';
 export interface ToolbarCallbacks {
   onNew(): void;
   onOpenFile(content: string, filename: string): void;
+  onTitleChange(title: string): void;
   onExport(): void;
   onToggleSettings(): void;
   onSelectUiTheme(themeId: string): void;
@@ -20,6 +21,7 @@ export interface ToolbarCallbacks {
 export interface ToolbarController {
   updateBackendCapabilities(backend: Backend): void;
   updatePageIndicator(currentPage: number, totalPages: number): void;
+  updateTitle(value: string, placeholder: string, lockedByFrontmatter: boolean): void;
   refreshUiThemes(selectedId: string): void;
   setSettingsOpenState(open: boolean): void;
 }
@@ -86,7 +88,32 @@ export function createToolbar(
   openBtn.textContent = 'Open';
   openBtn.addEventListener('click', () => fileInput.click());
 
-  leftGroup.append(brand, newBtn, openBtn, fileInput);
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'toolbar-title-wrap';
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.className = 'ui-input toolbar-title-input';
+  titleInput.placeholder = 'Title';
+  titleInput.setAttribute('aria-label', 'Document title');
+  titleInput.addEventListener('input', () => {
+    callbacks.onTitleChange(titleInput.value);
+  });
+  titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      titleInput.blur();
+    }
+  });
+
+  const titleBadge = document.createElement('span');
+  titleBadge.className = 'fm-badge toolbar-title-badge';
+  titleBadge.textContent = 'FM';
+  titleBadge.title = "Locked by YAML front matter 'title'";
+  titleBadge.hidden = true;
+
+  titleWrap.append(titleInput, titleBadge);
+
+  leftGroup.append(brand, newBtn, openBtn, fileInput, titleWrap);
 
   // Center group: Preview controls (zoom, page prev/next, scroll-sync)
   const centerGroup = document.createElement('div');
@@ -199,6 +226,19 @@ export function createToolbar(
     updateBackendCapabilities,
     updatePageIndicator(currentPage: number, totalPages: number) {
       pageIndicator.textContent = `${Math.max(1, currentPage)} / ${Math.max(1, totalPages)}`;
+    },
+    updateTitle(value: string, placeholder: string, lockedByFrontmatter: boolean) {
+      titleInput.placeholder = placeholder || 'Title';
+      titleInput.disabled = lockedByFrontmatter;
+      titleBadge.hidden = !lockedByFrontmatter;
+      if (lockedByFrontmatter) {
+        titleInput.title = "Locked by YAML front matter 'title'";
+      } else {
+        titleInput.removeAttribute('title');
+      }
+      if ((lockedByFrontmatter || document.activeElement !== titleInput) && titleInput.value !== value) {
+        titleInput.value = value;
+      }
     },
     refreshUiThemes(selectedId: string) {
       populateUiThemes(selectedId);

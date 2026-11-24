@@ -1,6 +1,7 @@
 export type TocStyle = 'classic' | 'minimal' | 'clean' | 'boxed';
 
 export interface DocSettings {
+  title: string;
   page: {
     size: 'A4' | 'A5' | 'Letter' | 'Legal';
     landscape: boolean;
@@ -33,6 +34,7 @@ export interface DocSettings {
 }
 
 export const DEFAULT_SETTINGS: DocSettings = {
+  title: '',
   page: {
     size: 'A4',
     landscape: false,
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: DocSettings = {
 
 export function cloneSettings(s: DocSettings = DEFAULT_SETTINGS): DocSettings {
   return {
+    title: s.title,
     page: {
       size: s.page.size,
       landscape: s.page.landscape,
@@ -81,4 +84,20 @@ export function cloneSettings(s: DocSettings = DEFAULT_SETTINGS): DocSettings {
     mathMacros: { ...s.mathMacros },
     docTheme: s.docTheme,
   };
+}
+
+export function toSafeFilename(
+  title: string | undefined,
+  ext: string,
+  fallbackBase = 'document'
+): string {
+  const withoutCtrl = Array.from(title ?? '', (ch) => (ch.charCodeAt(0) < 32 ? ' ' : ch)).join('');
+  const cleaned = withoutCtrl
+    .replace(/[<>:"/\\|?*]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[.\s]+|[.\s]+$/g, '');
+  const base = cleaned || fallbackBase;
+  const normalizedExt = ext.startsWith('.') ? ext : `.${ext}`;
+  return base.toLowerCase().endsWith(normalizedExt.toLowerCase()) ? base : `${base}${normalizedExt}`;
 }

@@ -196,14 +196,15 @@ export function parseFrontmatter(
   const settings = cloneSettings(baseSettings);
   const diagnostics: Diagnostic[] = [];
   const lockedPaths = new Set<string>();
+  const baseTitle = settings.title.trim() || undefined;
 
   if (!markdown.startsWith('---')) {
-    return { settings, body: markdown, bodyStartLine: 0, lockedPaths, diagnostics };
+    return { settings, body: markdown, bodyStartLine: 0, title: baseTitle, lockedPaths, diagnostics };
   }
 
   const lines = markdown.split(/\r?\n/);
   if (lines[0]?.trim() !== '---') {
-    return { settings, body: markdown, bodyStartLine: 0, lockedPaths, diagnostics };
+    return { settings, body: markdown, bodyStartLine: 0, title: baseTitle, lockedPaths, diagnostics };
   }
 
   let endIdx = -1;
@@ -216,7 +217,7 @@ export function parseFrontmatter(
   }
 
   if (endIdx === -1) {
-    return { settings, body: markdown, bodyStartLine: 0, lockedPaths, diagnostics };
+    return { settings, body: markdown, bodyStartLine: 0, title: baseTitle, lockedPaths, diagnostics };
   }
 
   const yamlText = lines.slice(1, endIdx).join('\n');
@@ -232,12 +233,12 @@ export function parseFrontmatter(
         line: 1,
       });
     }
-    return { settings, body, bodyStartLine, lockedPaths, diagnostics };
+    return { settings, body, bodyStartLine, title: baseTitle, lockedPaths, diagnostics };
   }
 
   const parsed = doc.toJS() as unknown;
   if (parsed === null || parsed === undefined) {
-    return { settings, body, bodyStartLine, lockedPaths, diagnostics };
+    return { settings, body, bodyStartLine, title: baseTitle, lockedPaths, diagnostics };
   }
 
   if (typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -246,7 +247,7 @@ export function parseFrontmatter(
       msg: 'Front matter must be a YAML mapping',
       line: 1,
     });
-    return { settings, body, bodyStartLine, lockedPaths, diagnostics };
+    return { settings, body, bodyStartLine, title: baseTitle, lockedPaths, diagnostics };
   }
 
   const cleaned = collectKnownAndWarnUnknown(
@@ -278,6 +279,9 @@ export function parseFrontmatter(
     validData = validated.data;
   }
 
+  if (validData.title !== undefined) {
+    settings.title = validData.title.trim();
+  }
   if (validData.page) {
     if (validData.page.size !== undefined) settings.page.size = validData.page.size;
     if (validData.page.landscape !== undefined) settings.page.landscape = validData.page.landscape;
@@ -342,11 +346,14 @@ export function parseFrontmatter(
     settings.docTheme = validData.docTheme;
   }
 
+  const effectiveTitle =
+    validData.title !== undefined ? validData.title.trim() || undefined : baseTitle;
+
   return {
     settings,
     body,
     bodyStartLine,
-    title: validData.title,
+    title: effectiveTitle,
     lockedPaths,
     diagnostics,
   };

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest';
+import { HtmlPagedBackend } from '../src/backends/html-paged/index.ts';
 import { buildPrintCss } from '../src/backends/html-paged/print-css.ts';
 import { irToHtml } from '../src/backends/html-paged/to-html.ts';
 import { normalizeDoc } from '../src/core/normalize.ts';
@@ -96,5 +98,26 @@ describe('Phase 2: HtmlPagedBackend serializer and print CSS', () => {
     expect(lblHtml).toContain('[coeff]</a>');
     expect(lblHtml).toContain('<ul class="footnotes-list footnotes-list--labeled">');
     expect(lblHtml).toContain('<span class="footnote-label">[coeff]</span>');
+  });
+
+  it('sets document.title to the resolved title during export window.print() and restores it after', async () => {
+    const backend = new HtmlPagedBackend();
+    const settings = cloneSettings(DEFAULT_SETTINGS);
+    const ir = normalizeDoc(parseMarkdown('# Printed Report Title\n\nContent'), settings);
+
+    const prevTitle = document.title;
+    let titleDuringPrint = '';
+    const origPrint = window.print;
+    window.print = vi.fn(() => {
+      titleDuringPrint = document.title;
+    });
+
+    try {
+      await backend.export(ir, settings, new AbortController().signal);
+      expect(titleDuringPrint).toBe('Printed Report Title');
+      expect(document.title).toBe(prevTitle);
+    } finally {
+      window.print = origPrint;
+    }
   });
 });

@@ -5,7 +5,7 @@ import type { Diagnostic, PreviewResult } from '../core/backend.ts';
 import { parseFrontmatter } from '../core/frontmatter.ts';
 import { normalizeDoc } from '../core/normalize.ts';
 import { parseMarkdown } from '../core/parse.ts';
-import { cloneSettings, DEFAULT_SETTINGS, type DocSettings } from '../core/settings.ts';
+import { cloneSettings, DEFAULT_SETTINGS, toSafeFilename, type DocSettings } from '../core/settings.ts';
 import { createEditor } from './editor.ts';
 import {
   runSweepTransition,
@@ -327,19 +327,46 @@ async function bootstrap(): Promise<void> {
 
   const toolbar = createToolbar(toolbarEl, listBackends(), activeBackend, {
     onNew() {
+      userSettings.title = '';
       runSweepTransition(() => {
         editor.setValue('# Untitled Document\n\n');
+      });
+      scheduleSaveState({
+        source: editor.getValue(),
+        settings: userSettings,
+        uiTheme: getCurrentUiThemeId(),
       });
       isFirstReveal = true;
       void triggerPreview(true);
     },
     onOpenFile(content, filename) {
+      const strippedName = filename.replace(/\.(md|markdown|txt)$/i, '').trim();
+      const probedFm = parseFrontmatter(content);
+      const probedIr = parseMarkdown(probedFm.body, {
+        lineOffset: probedFm.bodyStartLine,
+        title: probedFm.title,
+      });
+      userSettings.title = probedIr.meta.title ? '' : strippedName;
       runSweepTransition(() => {
         editor.setValue(content);
+      });
+      scheduleSaveState({
+        source: editor.getValue(),
+        settings: userSettings,
+        uiTheme: getCurrentUiThemeId(),
       });
       isFirstReveal = true;
       showToast(`Loaded ${filename}`, 'ok');
       void triggerPreview(true);
+    },
+    onTitleChange(newTitle) {
+      userSettings.title = newTitle;
+      scheduleSaveState({
+        source: editor.getValue(),
+        settings: userSettings,
+        uiTheme: getCurrentUiThemeId(),
+      });
+      void triggerPreview(false);
     },
     onExport() {
       void handleExport();
@@ -432,6 +459,14 @@ async function bootstrap(): Promise<void> {
         title: fm.title,
       });
       const normIr = normalizeDoc(rawIr, fm.settings);
+      const effectiveTitle = normIr.meta.title?.trim() || 'Untitled Document';
+
+      toolbar.updateTitle(
+        fm.settings.title,
+        'Title',
+        fm.lockedPaths.has('title')
+      );
+      document.title = effectiveTitle;
 
       const res = await activeBackend.preview(normIr, fm.settings, previewHost, signal);
       if (signal.aborted) {
@@ -497,14 +532,20 @@ async function bootstrap(): Promise<void> {
 
   function downloadMarkdownSource(): void {
     const rawMd = editor.getValue();
+    const fm = parseFrontmatter(rawMd, userSettings);
+    const rawIr = parseMarkdown(fm.body, {
+      lineOffset: fm.bodyStartLine,
+      title: fm.title,
+    });
+    const filename = toSafeFilename(rawIr.meta.title, '.md', 'document');
     const blob = new Blob([rawMd], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'document.md';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Downloaded document.md', 'ok');
+    showToast(`Downloaded ${filename}`, 'ok');
   }
 
   window.addEventListener('keydown', (e) => {

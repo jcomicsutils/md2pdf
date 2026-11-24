@@ -159,9 +159,18 @@ test.describe('Section 7 Fixtures & Phase 3 UI Acceptance', () => {
     await page.waitForFunction(() => Boolean(window.__md2pdf), null, { timeout: 15000 });
     await page.evaluate(() => window.__md2pdf.ready);
 
-    // Open settings and diagnostics drawers so all UI elements are in DOM
+    // Open settings, diagnostics drawers, and Ctrl+F search panel so all UI elements are in DOM
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.locator('.statusbar-diag-btn').click();
+    await page.locator('.cm-content').click();
+    await page.keyboard.press('ControlOrMeta+f');
+    const searchPanel = page.locator('.editor-pane .cm-panel.cm-search');
+    await expect(searchPanel).toBeVisible();
+    const searchBtnBgImage = await searchPanel
+      .locator('button.cm-button')
+      .first()
+      .evaluate((el) => window.getComputedStyle(el).backgroundImage);
+    expect(searchBtnBgImage).toBe('none');
 
     const nonZeroRadius = await page.evaluate(() => {
       const all = Array.from(document.querySelectorAll('*'));
@@ -179,6 +188,8 @@ test.describe('Section 7 Fixtures & Phase 3 UI Acceptance', () => {
       return null;
     });
     expect(nonZeroRadius).toBeNull();
+    await searchPanel.locator('button[name="close"]').click();
+    await expect(searchPanel).toBeHidden();
 
     // Theme toggle persistence across reload + toolbar buttons stay at exact same X position
     const syncCheckbox = page.getByRole('checkbox', { name: 'Toggle scroll sync' });
@@ -252,6 +263,32 @@ test.describe('Section 7 Fixtures & Phase 3 UI Acceptance', () => {
     const page1TableRows = await page.locator('.pagedjs_page').first().locator('table tbody tr').count();
     expect(page1TableRows).toBeGreaterThan(0);
     expect(await page.evaluate(() => window.__md2pdf.getDiagnostics())).toEqual([]);
+
+    // Verify toolbar document title input, front matter lock, and PDF /Title metadata
+    const titleInput = page.getByRole('textbox', { name: 'Document title' });
+    await expect(titleInput).toBeVisible();
+    await page.evaluate((md) => window.__md2pdf.setMarkdown(md), '# Heading Fallback Title\n\nHello');
+    await expect(titleInput).toHaveAttribute('placeholder', 'Title');
+    await expect(page).toHaveTitle('Heading Fallback Title');
+
+    await titleInput.fill('Custom Toolbar PDF Title');
+    await page.waitForTimeout(350);
+    await expect(page).toHaveTitle('Custom Toolbar PDF Title');
+
+    const titledPdfBuf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+    const titledPdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(titledPdfBuf) }).promise;
+    const pdfMeta = await titledPdfDoc.getMetadata();
+    expect((pdfMeta.info as { Title?: string })?.Title).toBe('Custom Toolbar PDF Title');
+
+    // Front matter title overrides and locks toolbar title input
+    await page.evaluate(
+      (md) => window.__md2pdf.setMarkdown(md),
+      '---\ntitle: Locked Front Matter Title\n---\n# Heading Fallback Title\n\nBody'
+    );
+    await expect(titleInput).toBeDisabled();
+    await expect(titleInput).toHaveValue('Locked Front Matter Title');
+    await expect(page.locator('.toolbar-title-badge')).toBeVisible();
+    await expect(page).toHaveTitle('Locked Front Matter Title');
 
     // Empty editor still renders 1 blank sheet
     await page.evaluate(() => window.__md2pdf.setMarkdown(''));

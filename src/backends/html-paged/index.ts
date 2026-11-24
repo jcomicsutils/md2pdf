@@ -186,13 +186,17 @@ export class HtmlPagedBackend implements Backend {
     }
   }
 
-  async export(_doc: DocIR, _s: DocSettings, _signal: AbortSignal): Promise<ExportResult> {
+  async export(doc: DocIR, s: DocSettings, _signal: AbortSignal): Promise<ExportResult> {
     await this.previewMutex;
+    const prevTitle = document.title;
+    const printTitle = doc.meta.title?.trim() || s.title.trim() || 'document';
+    document.title = printTitle;
     document.body.classList.add('printing');
     try {
       window.print();
     } finally {
       document.body.classList.remove('printing');
+      document.title = prevTitle;
     }
     return { kind: 'print-dialog' };
   }

@@ -1,17 +1,19 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
-import { searchKeymap } from '@codemirror/search';
+import { closeSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
 import { EditorState, RangeSetBuilder } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  type KeyBinding,
   keymap,
   lineNumbers,
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view';
 import { DIRECTIVE_MAP } from '../core/directives.ts';
+import { prefersReducedMotion } from './motion.ts';
 
 const directiveLineDeco = Decoration.line({ class: 'cm-directive-line' });
 
@@ -83,16 +85,40 @@ export function createEditor(
     },
   });
 
+  function animatedCloseSearchPanel(targetView: EditorView): boolean {
+    if (!searchPanelOpen(targetView.state)) return false;
+    const panelEl = targetView.dom.querySelector('.cm-panel.cm-search') as HTMLElement | null;
+    if (!panelEl || prefersReducedMotion()) {
+      return closeSearchPanel(targetView);
+    }
+    if (panelEl.classList.contains('is-closing')) {
+      return true;
+    }
+    panelEl.classList.add('is-closing');
+    if (panelEl.contains(document.activeElement)) {
+      targetView.focus();
+    }
+    setTimeout(() => {
+      closeSearchPanel(targetView);
+    }, 150);
+    return true;
+  }
+
+  const customSearchKeymap: KeyBinding[] = searchKeymap.map((binding) =>
+    binding.key === 'Escape' ? { ...binding, run: animatedCloseSearchPanel } : binding
+  );
+
   const state = EditorState.create({
     doc: initialDoc,
     extensions: [
       lineNumbers(),
       history(),
+      search({ top: true }),
       EditorView.lineWrapping,
       markdown(),
       directivePlugin,
       cursorTheme,
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...customSearchKeymap, indentWithTab]),
       updateListener,
     ],
   });
@@ -101,6 +127,21 @@ export function createEditor(
     state,
     parent: host,
   });
+
+  // Intercept clicks on the search panel close button to play the closing animation
+  host.addEventListener(
+    'click',
+    (e) => {
+      const target = e.target as HTMLElement | null;
+      const closeBtn = target?.closest('.cm-panel.cm-search button[name="close"]');
+      if (closeBtn && !prefersReducedMotion()) {
+        e.preventDefault();
+        e.stopPropagation();
+        animatedCloseSearchPanel(view);
+      }
+    },
+    true
+  );
 
   // Drag-and-drop file onto editor
   host.addEventListener('dragover', (e) => {

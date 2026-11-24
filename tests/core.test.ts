@@ -10,7 +10,7 @@ import {
 import { listThemes, paletteFor, registerCustomTheme } from '../src/core/palette.ts';
 import { EXAMPLES } from '../src/examples/index.ts';
 import { parseMarkdown } from '../src/core/parse.ts';
-import { cloneSettings, DEFAULT_SETTINGS } from '../src/core/settings.ts';
+import { cloneSettings, DEFAULT_SETTINGS, toSafeFilename } from '../src/core/settings.ts';
 
 describe('Phase 1: Core parser, directives, math, normalizer, frontmatter, palette', () => {
   it('parses directives only as block lines and ignores them inside fenced code and math', () => {
@@ -313,5 +313,49 @@ err = "#CC0000"
       expect(ir.blocks[0].v).toContain('```python');
       expect(ir.blocks[0].v).toContain('print("nested")');
     }
+  });
+
+  it('resolves title precedence (front matter > settings.title > first # H1) and sanitizes filenames', () => {
+    const base = cloneSettings(DEFAULT_SETTINGS);
+    base.title = 'Toolbar Custom Title';
+
+    // When no front matter title is present, settings.title wins over # H1
+    const fmNoTitle = parseFrontmatter('# Heading Fallback\n\nBody text.', base);
+    expect(fmNoTitle.title).toBe('Toolbar Custom Title');
+    expect(fmNoTitle.settings.title).toBe('Toolbar Custom Title');
+    expect(fmNoTitle.lockedPaths.has('title')).toBe(false);
+    const irWithToolbarTitle = parseMarkdown(fmNoTitle.body, {
+      lineOffset: fmNoTitle.bodyStartLine,
+      title: fmNoTitle.title,
+    });
+    expect(irWithToolbarTitle.meta.title).toBe('Toolbar Custom Title');
+
+    // When front matter title is present, it overrides settings.title and locks 'title'
+    const fmWithTitle = parseFrontmatter(
+      ['---', 'title: Front Matter Title', '---', '# Heading Fallback'].join('\n'),
+      base
+    );
+    expect(fmWithTitle.title).toBe('Front Matter Title');
+    expect(fmWithTitle.settings.title).toBe('Front Matter Title');
+    expect(fmWithTitle.lockedPaths.has('title')).toBe(true);
+    const irWithFmTitle = parseMarkdown(fmWithTitle.body, {
+      lineOffset: fmWithTitle.bodyStartLine,
+      title: fmWithTitle.title,
+    });
+    expect(irWithFmTitle.meta.title).toBe('Front Matter Title');
+
+    // When neither front matter title nor settings.title is set, first # H1 is used
+    const fmEmpty = parseFrontmatter('# Heading Fallback\n\nBody text.', DEFAULT_SETTINGS);
+    expect(fmEmpty.title).toBeUndefined();
+    const irWithH1 = parseMarkdown(fmEmpty.body, {
+      lineOffset: fmEmpty.bodyStartLine,
+      title: fmEmpty.title,
+    });
+    expect(irWithH1.meta.title).toBe('Heading Fallback');
+
+    // Filename sanitization
+    expect(toSafeFilename('My Report: Q1/Q2 *Draft*?', '.md')).toBe('My Report Q1 Q2 Draft.md');
+    expect(toSafeFilename('   ', '.md', 'document')).toBe('document.md');
+    expect(toSafeFilename('notes.md', '.md')).toBe('notes.md');
   });
 });
