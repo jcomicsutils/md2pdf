@@ -31,6 +31,14 @@ npm run test:e2e # Run Playwright Chromium PDF pagination verification suite
 - `Ctrl/Cmd + S`: Download the current Markdown source as `<title>.md`.
 - `Ctrl/Cmd + Click` (in preview): Jump the editor cursor to the clicked block's source line.
 
+### Editor Auto-Close
+
+Open **Settings → Editor** to configure character and delimiter auto-closing:
+
+- **LaTeX + Markdown (Default Profile):** Auto-closes `()`, `[]`, `{}`, `""`, `` `` ``, `$...$` (typing a second `$` immediately upgrades `$|$` to `$$|$$`), `\( \)`, `\[ \]`, `\{ \}`, and `\left...\right` delimiters, with `Enter` block expansion inside `$$`/`\[...\]`/`{}` and `Backspace` pair deletion.
+- **Context-Aware:** LaTeX-specific pairs (`$`, `\(`, `\[`, `\{`, `\left...`) are suppressed inside Markdown fenced code blocks and inline code spans, while escaped delimiters (`\$`, `\"`) and contractions/primes (`don't`, `$f'(x)$`) do not misfire.
+- **Fully Customizable:** Toggle auto-close globally or per pair, edit or add custom pairs (such as `|` → `|` or `<` → `>`), toggle `!code` suppression per pair, switch between built-in presets, or save your own custom profiles.
+
 ### Directives
 
 Place directives alone on their own line (outside fenced code blocks and math blocks):

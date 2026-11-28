@@ -1,6 +1,12 @@
 import readmeRaw from '../../README.md?raw';
 import { PreviewScheduler } from '../backends/html-paged/scheduler.ts';
 import { getBackend, listBackends } from '../backends/registry.ts';
+import {
+  cloneAutoCloseSettings,
+  DEFAULT_AUTOCLOSE_SETTINGS,
+  sanitizeAutoCloseSettings,
+  type AutoCloseSettings,
+} from '../core/autoclose.ts';
 import type { Diagnostic, PreviewResult } from '../core/backend.ts';
 import { parseFrontmatter } from '../core/frontmatter.ts';
 import { normalizeDoc } from '../core/normalize.ts';
@@ -55,6 +61,7 @@ interface StoredState {
   source: string;
   settings: DocSettings;
   uiTheme: string;
+  autoClose: AutoCloseSettings;
 }
 
 function loadStoredState(): StoredState {
@@ -62,6 +69,7 @@ function loadStoredState(): StoredState {
     source: DEFAULT_MARKDOWN,
     settings: cloneSettings(DEFAULT_SETTINGS),
     uiTheme: detectDefaultUiTheme(),
+    autoClose: cloneAutoCloseSettings(DEFAULT_AUTOCLOSE_SETTINGS),
   };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -75,6 +83,7 @@ function loadStoredState(): StoredState {
       source: typeof parsed.source === 'string' ? parsed.source : fallback.source,
       settings: mergedSettings,
       uiTheme: typeof parsed.uiTheme === 'string' ? parsed.uiTheme : fallback.uiTheme,
+      autoClose: sanitizeAutoCloseSettings(parsed.autoClose),
     };
   } catch {
     return fallback;
@@ -106,6 +115,8 @@ export interface Md2PdfTestApi {
   setMarkdown(md: string): Promise<PreviewResult>;
   getSettings(): DocSettings;
   setSettings(partial: Partial<DocSettings>): Promise<PreviewResult>;
+  getAutoCloseSettings(): AutoCloseSettings;
+  setAutoCloseSettings(next: AutoCloseSettings): void;
   getDiagnostics(): Diagnostic[];
   getPageCount(): number;
 }
@@ -120,6 +131,7 @@ async function bootstrap(): Promise<void> {
   loadStoredCustomThemes();
   const stored = loadStoredState();
   let userSettings = cloneSettings(stored.settings);
+  let autoCloseSettings = cloneAutoCloseSettings(stored.autoClose);
   let activeBackend = getBackend();
   let isFirstReveal = true;
   let pendingOrientationMorph: { toLandscape: boolean } | null = null;
@@ -213,11 +225,13 @@ async function bootstrap(): Promise<void> {
   });
 
   const editor = createEditor(editorPane, stored.source, {
+    autoClose: autoCloseSettings,
     onChange: (newSource) => {
       scheduleSaveState({
         source: newSource,
         settings: userSettings,
         uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
       });
       void triggerPreview(false);
     },
@@ -278,6 +292,7 @@ async function bootstrap(): Promise<void> {
         source: editor.getValue(),
         settings: userSettings,
         uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
       });
       void triggerPreview(true);
     },
@@ -316,12 +331,26 @@ async function bootstrap(): Promise<void> {
       }
       clearStoredCustomThemes();
       userSettings = cloneSettings(DEFAULT_SETTINGS);
+      autoCloseSettings = cloneAutoCloseSettings(DEFAULT_AUTOCLOSE_SETTINGS);
+      editor.setAutoClose(autoCloseSettings);
+      settingsPanel.syncAutoClose(autoCloseSettings);
       const defaultUiTheme = detectDefaultUiTheme();
       setUiTheme(defaultUiTheme, true);
       toolbar.refreshUiThemes(getCurrentUiThemeId());
       isFirstReveal = true;
       void triggerPreview(true);
       showToast('Cleared cached settings & themes');
+    },
+    autoCloseSettings,
+    (updatedAutoClose) => {
+      autoCloseSettings = cloneAutoCloseSettings(updatedAutoClose);
+      editor.setAutoClose(autoCloseSettings);
+      scheduleSaveState({
+        source: editor.getValue(),
+        settings: userSettings,
+        uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
+      });
     }
   );
 
@@ -335,6 +364,7 @@ async function bootstrap(): Promise<void> {
         source: editor.getValue(),
         settings: userSettings,
         uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
       });
       isFirstReveal = true;
       void triggerPreview(true);
@@ -354,6 +384,7 @@ async function bootstrap(): Promise<void> {
         source: editor.getValue(),
         settings: userSettings,
         uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
       });
       isFirstReveal = true;
       showToast(`Loaded ${filename}`, 'ok');
@@ -365,6 +396,7 @@ async function bootstrap(): Promise<void> {
         source: editor.getValue(),
         settings: userSettings,
         uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
       });
       void triggerPreview(false);
     },
@@ -381,6 +413,7 @@ async function bootstrap(): Promise<void> {
           source: editor.getValue(),
           settings: userSettings,
           uiTheme: getCurrentUiThemeId(),
+          autoClose: autoCloseSettings,
         },
         true
       );
@@ -592,6 +625,7 @@ async function bootstrap(): Promise<void> {
           source: editor.getValue(),
           settings: userSettings,
           uiTheme: getCurrentUiThemeId(),
+          autoClose: autoCloseSettings,
         });
         void triggerPreview(true);
         showToast(`Imported theme: ${imported.name}`);
@@ -628,6 +662,20 @@ async function bootstrap(): Promise<void> {
       const res = await triggerPreview(true);
       await scheduler.waitForIdle();
       return res;
+    },
+    getAutoCloseSettings(): AutoCloseSettings {
+      return cloneAutoCloseSettings(autoCloseSettings);
+    },
+    setAutoCloseSettings(next: AutoCloseSettings): void {
+      autoCloseSettings = sanitizeAutoCloseSettings(next);
+      editor.setAutoClose(autoCloseSettings);
+      settingsPanel.syncAutoClose(autoCloseSettings);
+      scheduleSaveState({
+        source: editor.getValue(),
+        settings: userSettings,
+        uiTheme: getCurrentUiThemeId(),
+        autoClose: autoCloseSettings,
+      });
     },
     getDiagnostics(): Diagnostic[] {
       return [...latestDiagnostics];

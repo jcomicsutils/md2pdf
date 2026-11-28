@@ -1,7 +1,7 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { closeSearchPanel, search, searchKeymap, searchPanelOpen } from '@codemirror/search';
-import { EditorState, RangeSetBuilder } from '@codemirror/state';
+import { Compartment, EditorState, RangeSetBuilder } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -12,7 +12,13 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view';
+import {
+  cloneAutoCloseSettings,
+  DEFAULT_AUTOCLOSE_SETTINGS,
+  type AutoCloseSettings,
+} from '../core/autoclose.ts';
 import { DIRECTIVE_MAP } from '../core/directives.ts';
+import { createAutoCloseExtension } from './autoclose-extension.ts';
 import { prefersReducedMotion } from './motion.ts';
 
 const directiveLineDeco = Decoration.line({ class: 'cm-directive-line' });
@@ -54,6 +60,7 @@ export interface EditorController {
   getValue(): string;
   setValue(text: string): void;
   jumpToLine(lineNumber1Based: number): void;
+  setAutoClose(settings: AutoCloseSettings): void;
 }
 
 export function createEditor(
@@ -62,6 +69,7 @@ export function createEditor(
   options: {
     onChange: (doc: string) => void;
     onCursorLine?: (line1Based: number) => void;
+    autoClose?: AutoCloseSettings;
   }
 ): EditorController {
   const updateListener = EditorView.updateListener.of((update) => {
@@ -108,6 +116,11 @@ export function createEditor(
     binding.key === 'Escape' ? { ...binding, run: animatedCloseSearchPanel } : binding
   );
 
+  const autoCloseCompartment = new Compartment();
+  const initialAutoClose = cloneAutoCloseSettings(
+    options.autoClose ?? DEFAULT_AUTOCLOSE_SETTINGS
+  );
+
   const state = EditorState.create({
     doc: initialDoc,
     extensions: [
@@ -116,6 +129,7 @@ export function createEditor(
       search({ top: true }),
       EditorView.lineWrapping,
       markdown(),
+      autoCloseCompartment.of(createAutoCloseExtension(initialAutoClose)),
       directivePlugin,
       cursorTheme,
       keymap.of([...defaultKeymap, ...historyKeymap, ...customSearchKeymap, indentWithTab]),
@@ -195,5 +209,13 @@ export function createEditor(
     view.focus();
   }
 
-  return { view, getValue, setValue, jumpToLine };
+  function setAutoClose(settings: AutoCloseSettings): void {
+    view.dispatch({
+      effects: autoCloseCompartment.reconfigure(
+        createAutoCloseExtension(cloneAutoCloseSettings(settings))
+      ),
+    });
+  }
+
+  return { view, getValue, setValue, jumpToLine, setAutoClose };
 }

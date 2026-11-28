@@ -321,4 +321,91 @@ test.describe('Section 7 Fixtures & Phase 3 UI Acceptance', () => {
     expect(pageCount).toBe(20);
     expect(elapsedMs).toBeLessThan(2000);
   });
+
+  test('Editor auto-close: LaTeX defaults, custom pairs (|, <), profile saving, and reload persistence', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => Boolean(window.__md2pdf), null, { timeout: 15000 });
+    await page.evaluate(() => window.__md2pdf.ready);
+    await page.evaluate(() => window.__md2pdf.setMarkdown(''));
+
+    // Focus editor and type LaTeX math
+    const cmContent = page.locator('.cm-content');
+    await cmContent.click();
+    await page.keyboard.type('$x^2$');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('$$');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('\\left(a');
+
+    const textAfterDefaults = await cmContent.innerText();
+    expect(textAfterDefaults).toContain('$x^2$');
+    expect(textAfterDefaults).toContain('$$');
+    expect(textAfterDefaults).toContain('\\left(a\\right)');
+
+    // Open Settings -> Editor, expand Closing Pairs, add | -> | and < -> >
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await page.locator('.autoclose-summary').click();
+
+    await page.getByLabel('New opening delimiter').fill('|');
+    await page.getByLabel('New closing delimiter').fill('|');
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await expect(page.getByLabel('Remove pair | to |')).toBeVisible();
+
+    await page.getByLabel('New opening delimiter').fill('<');
+    await page.getByLabel('New closing delimiter').fill('>');
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await expect(page.getByLabel('Remove pair < to >')).toBeVisible();
+
+    // Save as custom profile
+    await page.getByRole('button', { name: 'Save as Profile…' }).click();
+    await page.getByLabel('Custom profile name').fill('My Math Profile');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+    // Verify zero border-radius still holds with pairs list expanded
+    const nonZeroRadius = await page.evaluate(() => {
+      for (const el of Array.from(document.querySelectorAll('*'))) {
+        const cs = window.getComputedStyle(el);
+        if (
+          cs.borderTopLeftRadius !== '0px' ||
+          cs.borderTopRightRadius !== '0px' ||
+          cs.borderBottomLeftRadius !== '0px' ||
+          cs.borderBottomRightRadius !== '0px'
+        ) {
+          return cs.borderRadius;
+        }
+      }
+      return null;
+    });
+    expect(nonZeroRadius).toBeNull();
+
+    // Test custom | and < auto-closing in editor
+    await page.evaluate(() => window.__md2pdf.setMarkdown(''));
+    await cmContent.click();
+    await page.keyboard.type('|');
+    await page.keyboard.type('x');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.type(' <');
+    const textCustom = await cmContent.innerText();
+    expect(textCustom).toContain('|x| <>');
+
+    // Toggle master auto-close off and verify '(' does not auto-close
+    await page.getByLabel('Auto-close characters').uncheck();
+    await cmContent.click();
+    await page.keyboard.type('(');
+    const textDisabled = await cmContent.innerText();
+    expect(textDisabled).toContain('|x| <>(');
+
+    // Re-enable and verify persistence across reload
+    await page.getByLabel('Auto-close characters').check();
+    await page.waitForTimeout(600);
+    await page.reload();
+    await page.waitForFunction(() => Boolean(window.__md2pdf), null, { timeout: 15000 });
+    const persisted = await page.evaluate(() => window.__md2pdf.getAutoCloseSettings());
+    expect(persisted.enabled).toBe(true);
+    expect(persisted.activeProfileId).toBe('custom-my-math-profile');
+    expect(persisted.pairs.some((p) => p.open === '|' && p.close === '|')).toBe(true);
+    expect(persisted.pairs.some((p) => p.open === '<' && p.close === '>')).toBe(true);
+  });
 });
